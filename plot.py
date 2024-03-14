@@ -33,7 +33,12 @@ class Plot:
         if show:
             self._showPlt()
 
-    def _showPlt(self):
+    def _legend(self):
+        plt.legend()
+
+    def _showPlt(self,legend=False):
+        if legend:
+            plt.legend(fontsize='medium')
         plt.show()
         plt.close()
 
@@ -191,6 +196,7 @@ class Plot:
     
     Params:
     - [data]: (xs:list[num], ys:list[num): numerical data to plot
+    - [scatter]: boolean: if true, scatter plots instead of linear plots the data
     - [output]: boolean: if true, prints x,y data to the console
     - [chart]: map object containing information for labelling the plot. See fillInChartInfo
     - [wait]: boolean: if true, will not show the plot after creating it
@@ -238,7 +244,7 @@ class Plot:
 
         P.plotGeneric(fInfo=m, output=True, chart=chart)
     """
-    def plotGeneric(self,data=None,fInfo=None,output=False,chart=None,wait=False,addStats=False,onlyMean=False):
+    def plotGeneric(self,data=None,fInfo=None,scatter=False,label=None,output=False,chart=None,wait=False,addStats=False,onlyMean=False,scatterArgs=None):
         lobf = 0
         if not data and not fInfo:
             return
@@ -253,7 +259,6 @@ class Plot:
             plotIt = self._getOptionalParam(fInfo,'plotIt',default=True)
             δ = self._getOptionalParam(fInfo,'δ',default=1)
             lobf = self._getOptionalParam(fInfo,'lobf')
-
             if iters:
                 xs,ys = [],[]
                 for i in range(1,iters+1):
@@ -286,8 +291,22 @@ class Plot:
             print(xs)
             print(ys)
 
-        if plotIt:
-            plt.plot(xs, ys) #actually plot the data
+        def label_maybe_and_plot():
+            if label:
+                if scatterArgs:
+                    plt.scatter(xs,ys,s=scatterArgs['s'],c=scatterArgs['color'],label=label)
+                elif scatter:
+                    plt.scatter(xs,ys,label=label)
+                elif plotIt:
+                    plt.plot(xs, ys,label=label) #actually plot the data
+            else:
+                if scatterArgs:
+                    plt.scatter(xs,ys,s=scatterArgs['s'],c=scatterArgs['color'])
+                elif scatter:
+                    plt.scatter(xs,ys)
+                elif plotIt:
+                    plt.plot(xs, ys) #actually plot the data
+        label_maybe_and_plot()
         stats = None
         if chart:
             if addStats:
