@@ -6,6 +6,8 @@ from collections import Counter
 from mathutil import avgVar
 import numpy as np
 from mpl_toolkits import mplot3d
+import time
+
 
 
 util = Util()
@@ -345,6 +347,95 @@ class Plot:
             return
         if show:
             self._showPlt()
+
+    def _benchmark(self,f,data):
+        times = []
+        for d in data:
+            t = time.time()
+            f(d)
+            total_t = time.time() - t
+            times.append(total_t)
+        return times
+
+    """ benchmark_np
+        benchmark a numpy function on vectors or matrices
+
+        args:
+            - f: array -> 'a or mtx/tensor -> 'a, the numpy function to benchmark
+            - data: list['a] | None: data to pass directly to f if not None
+            - type: 'vec', 'sqmtx', 'mnmtx', 'tensor'
+            - gen_info: map | None: used to describe the inputs to generate for f if no data provided directly
+            
+            - default: depends on type
+                default for 'vec':
+                    {
+                        'type':'vec',
+                        'range':[5,13],
+                        'base':2,
+                        'op':mult,
+                        'delta':2,
+                        'dims':'N'
+                        'rand':'base',
+                    }
+                default for 'sqmtx':
+                    {
+                        'type':'mtx',
+                        'range':[5,13],
+                        'base':2,
+                        'op':mult,
+                        'delta':2,
+                        'dims':'N'
+                        'rand':'base',
+                    }
+    - see plot_docs.md for full documentation
+    """
+    def benchmark_np(self,f,data=None,type_='sqmtx',gen_info=None):
+        if data:
+            times = self._benchmark(f,data)
+        elif not gen_info:
+            gen_info = self.get_default_np_gen_info(type_)
+        data = self._generate_data(gen_info) #todo
+        times = self._benchmark(f,data)
+        
+
+    def _generate_data(self,gen_info):
+        return 0
+
+    def _get_default_np_gen_info(self,type_,**kw_override):
+        gen_info = {'range':[5,13],'base':2,'op':'mult','delta':2,'rand':'base'}
+    
+        if type_ == 'vec':
+            gen_info['type'] = 'vec'
+            gen_info['dims'] = 'N'
+        elif type_ == 'tensor':
+            gen_info['type'] = 'tensor'
+            gen_info['dims'] = 3
+        gen_info['type'] = 'mtx'
+        if type_ == 'sqmtx':
+            gen_info['dims'] = 'NN'
+        else:
+            gen_info['dims'] = 'MN'
+        for k in kw_override:
+            gen_info[k] = kw_override[k]
+        return gen_info
+        
+
+
+
+
+
+# import math
+# import random
+# chart = {
+#             'xlabel': f'Dimension of matrix',
+#             'ylabel': f'Time',
+#             'title': f'Size vs. Time for SVD for Square Matrix',
+#             'lobf':1
+#         }
+# p.plotGeneric(data=(sizes,times),chart=chart,wait=True,label='time')
+# p._legend()
+# p.plotGeneric(data=(sizes,[.4 * (s**3)/10**9 for s in sizes]),label='O(n^3)',wait=1)
+# p._showPlt(legend=1)
 
 
 if __name__ == '__main__':
