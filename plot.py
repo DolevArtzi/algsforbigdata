@@ -8,13 +8,35 @@ import numpy as np
 from mpl_toolkits import mplot3d
 import time
 from tqdm import tqdm
-
+import pandas as pd
+from matplotlib import pyplot as plt
+from sklearn.neighbors import KNeighborsClassifier, RadiusNeighborsClassifier
 
 util = Util()
 class Plot:
     def __init__(self):
         self.ax = None
         self.rng = np.random.default_rng()
+        self.df = None
+        self.process_csv('data.csv')
+        self.classifier = None
+        self.param = 5
+        self.avgs = None
+        self.set_classifier('knn',self.param)
+
+    """ set_classifier
+    Sets the classifier for plot according to the name and param provided
+
+    Parameters:
+        - name : 'knn' | 'r_nn': k nearest neighbors, or radius neighbors
+        - param : parameters to pass to the classifier ctor: defaults to 3 neighbors, but is interpreted as the radius if name == 'r_nn'
+    """
+    def set_classifier(self,name='knn',param=3):
+        if name == 'knn':
+            self.classifier = KNeighborsClassifier(n_neighbors=param)
+        elif name == 'r_nn':
+            self.classifier = RadiusNeighborsClassifier(radius=param)
+
 
     def _fillInPDFCDFTail(self,X,name,text=None,show=True):
         print(name)
@@ -559,6 +581,172 @@ class Plot:
         gen_info['base'] = base
 
         return gen_info
+    
+    def read_file(self,file='data.csv'):
+        #https://www.kaggle.com/datasets/kumarajarshi/life-expectancy-who/data
+        df = pd.read_csv(file)
+        print(df.head(5))
+        return df
+    
+    def get_relevant_df_col(self,df,ind_name='GDP',dep_name='Life expectancy '):
+        df_rel = df[[dep_name, ind_name]]
+        data = df_rel.to_dict()
+        l = len(list(data[ind_name].values()))
+        for k in data:
+            data[k] = list(data[k].values())
+        final_data = [(data[ind_name][i],data[dep_name][i]) for i in range(l)]
+        data = final_data
+        data = [(x,y) for x,y in data if not math.isnan(x) and not math.isnan(y)]
+        indeps = [x[0] for x in data]
+        deps = [x[1] for x in data]
+        min_indeps = min(indeps)
+        max_indeps = max(indeps)
+        min_deps = min(deps)
+        max_deps = max(deps)
+        avg_indeps = sum(indeps)/len(indeps)
+        avg_deps = sum(deps)/len(deps)
+        self.avgs = [avg_indeps,avg_deps]
+        print(f'Basic Statistics\n- [{ind_name}] min: {min_indeps}; max: {max_indeps}; avg: {avg_indeps}')
+        print(f'- [{"LE" if dep_name == "Life expectancy " else dep_name}] min: {min_deps}; max: {max_deps}; avg: {avg_deps}')
+        return data
+
+    ''' _extract
+    Given a list of indexes into a list, extracts the relevant elements according to their indices
+    and the arrs[i]'s are disjoint. 
+    
+    Parameters:
+        - idxs : list[integers]: a list of indices into the lists in arrs
+        - arr : list['a]: a list representing one dimension of our data to pull from
+    
+    Returns: (arr[i] for i in idxs)
+    '''
+    def _extract(self,idxs,arr):
+        out = []
+        for i in idxs:
+                out.append(arr[i])
+        return tuple(out)
+
+    ''' extract
+    Given a list of indexes, and a 'list of lists' (*arrs) where each |arrs[i]| is equal, extracts 
+    [[a[i] for a in *arrs] for i in idxs]
+    and the arrs[i]'s are disjoint. 
+    
+    Parameters:
+        - idxs : list[integers]: a list of indices into the lists in arrs
+        - *arrs : *list['a]: a variable length collection of equilength lists, 
+                             ordered by dimension, that will be extracted from row-wise across the arrs
+    
+    Returns: [[a[i] for a in *arrs] for i in idxs]
+
+    '''
+    def extract(self,idxs,*arrs):
+        out = []
+        for _,a in enumerate(*arrs):
+                out.append(self._extract(idxs,a))
+        return out
+
+    ''' _extract_category
+    Given a map of our predictions and a category, extracts all datapoints that belong to that category 
+    
+    Parameters:
+        - predictions : list[category]: predictions[i] is the numerical category that our i^th data point belongs to
+        - cat_num : integer: an integer representing the category to extract
+    
+    Returns: the datapoints in the relevant category, by index
+    '''
+    def _extract_category(self,predictions,cat_num):
+        return [i for i,x in enumerate(predictions) if x == cat_num]
+
+    """ extract_categories
+    Assuming you already called plot.process_csv, given two columns ind_name and dep_name, and a list of predictions, returns a 3D list defined below.
+
+    Parameters:
+        - predictions : list[category]: assuming data is of the form [(x,y) for (x,y) in zip(ind_col,dep_col)],
+                                        predictions[i] is the predicted category for data[i]
+        - ind_name : str: name of column that is the independent variable in our dataframe
+        - dep_name : str: name of column that is the dependent variable
+
+    Returns: a list, out, defined as follows:
+        - out[i] is the list of datapoints belonging to the ith category
+    """
+    def extract_categories(self,predictions,ind_name='GDP',dep_name = 'Life expectancy '):
+        data = self.get_relevant_df_col(self.df,ind_name=ind_name,dep_name=dep_name)
+        out = []
+        num_cats = len(list(set(predictions)))
+        for cat_num in range(1,1+num_cats):
+                out.append(self._extract_category(predictions,cat_num))
+        for i in range(len(out)):
+                out[i] = self.extract(out[i],data)
+        return out
+
+    def process_csv(self,file='data.csv'):
+        self.df = self.read_file(file)
+
+    """ clustering
+    Deterministically clusters data according to the class information in class_info
+        - data: includes as many lists of length #(data points) as there are dimensions (usually 2)
+            - independent variable data (x's) first, then the dependent variable (y's)
+
+        - cat_info : dict[label : str |-> member : func] each key in class_info maps a label (str) to a function:
+            - member : 'a -> bool: determines membership in the class
+        - x_name/y_name : str: the names of the x and y columns in data
+        - note: assumes the membership functions partition the data space
+    """
+    def clustering(self,x_name,y_name,cat_info,plot=1):
+        data = self.get_relevant_df_col(self.df,x_name,y_name)
+        cats = []
+        labels = list(cat_info.keys())
+        for label in labels:
+            member = cat_info[label]
+            cats.append([t for t in data if member(t)])
+
+        n = self.classifier
+        y = []
+        for i,cat in enumerate(cats):
+            for _ in cat:
+                y.append(i+1)
+        y = np.array(y)
+        X = np.array(data)
+        classifier = n.fit(X,y)
+        predictions = classifier.predict(X)
+        extracted_cats =  self.extract_categories(predictions,x_name,y_name)
+        if not plot:
+            return extracted_cats
+        colors = ['g','y','b','r','teal','black'] #add more colors
+        for i,cat in enumerate(extracted_cats):
+            self.plotGeneric(data=cat,
+                             label=labels[i],
+                             scatterArgs={'s':.75,'color':colors[i % len(colors)]},
+                             wait=1)
+            self._legend()
+        chart={'title':f'{"life expectancy (country)" if y_name == "Life expectancy" else y_name} vs. {x_name}, 2000-2015 [KNN]', #fix knn hardcoding
+                                    'xlabel':'GDP ($)',
+                                    'ylabel':'Life Expectancy (years)'}
+        self.set_chart(chart,show=1)
+
+        # self.plotGeneric(data=cats[3],label='best',
+        #                     scatterArgs={'s':1.5,'color':'g'},
+        #                     wait=True)
+        # p._legend()
+        # p.plotGeneric(data=cats[1],label='bad gdp, good le',
+        #                     scatterArgs={'s':1.5,'color':'y'},
+        #                     wait=True)
+        # p._legend()
+        # p.plotGeneric(data=cats[2],label='good gdp, bad le',
+        #                     scatterArgs={'s':1.5,'color':'b'},
+        #                     wait=True)
+        # p._legend()
+
+        # p.plotGeneric(data=cats[0],label='worst',
+        #                     scatterArgs={'s':0.2,'color':'r'},
+        #                     wait=True,
+        #                     )
+
+    def set_chart(self,chart,show=0):
+        plt.chart = chart
+        if show:
+            self._showPlt(legend=1)
+
 
 if __name__ == '__main__':
     U = Exponential(0.1)
