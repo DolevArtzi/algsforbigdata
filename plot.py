@@ -14,6 +14,7 @@ util = Util()
 class Plot:
     def __init__(self):
         self.ax = None
+        self.rng = np.random.default_rng()
 
     def _fillInPDFCDFTail(self,X,name,text=None,show=True):
         print(name)
@@ -348,15 +349,6 @@ class Plot:
         if show:
             self._showPlt()
 
-    def _benchmark(self,f,data):
-        times = []
-        for d in data:
-            t = time.time()
-            f(d)
-            total_t = time.time() - t
-            times.append(total_t)
-        return times
-
     """ benchmark_np
         benchmark a numpy function on vectors or matrices
 
@@ -365,99 +357,186 @@ class Plot:
             - data: list['a] | None: data to pass directly to f if not None
             - type: 'vec', 'sqmtx', 'mnmtx', 'tensor'
             - gen_info: map | None: used to describe the inputs to generate for f if no data provided directly
-            
-            - default: depends on type
-                default for 'vec':
-                    {
-                        'type':'vec',
-                        'range':[5,13],
-                        'base':2,
-                        'op':mult,
-                        'delta':2,
-                        'dims':'N'
-                        'rand':'base',
-                    }
-                default for 'sqmtx':
-                    {
-                        'type':'mtx',
-                        'range':[5,13],
-                        'base':2,
-                        'op':mult,
-                        'delta':2,
-                        'dims':'N'
-                        'rand':'base',
-                    }
-    - see plot_docs.md for full documentation
+                      
+            - default: depends on type, see plot_docs.md (https://github.com/DolevArtzi/algsforbigdata/blob/main/plot_docs.md) for full documentation
     """
     def benchmark_np(self,f,data=None,type_='sqmtx',gen_info=None):
         if data:
             times = self._benchmark(f,data)
         elif not gen_info:
-            gen_info = self.get_default_np_gen_info(type_)
+            gen_info = self._get_default_np_gen_info(type_)
+            print(gen_info)
         data = self._generate_data(gen_info) #todo
+        print(len(data), data[0])
+        sizes = [max(np.shape(d)) for d in data]
         times = self._benchmark(f,data)
+        # import math
+        # import random
+        dim_str = 'Largest Dimension' if type_ == 'mnmtx' else 'Dimension'
+        chart = {
+                    'xlabel': dim_str + ' ' + f"of {type_ if type_ in ['vec','tensor'] else 'matrix'}",
+                    'ylabel': f'Time',
+                    'lobf':1
+                }
+
+        chart['title'] = f'Size vs. Time for {f.__name__} for Data'
+        print(sizes)
+        print(times)
+        self.plotGeneric(data=(sizes,times),chart=chart,wait=True,label='time')
+        self._legend()
+        self.plotGeneric(data=(sizes,[1.* (s**3)/10**9 for s in sizes]),label='O(n^3)',wait=1)
+        self._showPlt(legend=1)
+
+    """ _benchmark
+    Times f(data)
+
+    Parameters:
+        - f : function
+        - data : 'a
+
+    Returns:
+        - the time for f(data)'s execution, in ms
+    """
+    def _benchmark(self,f,data):
+        times = []
+        for d in data:
+            t = time.time()
+            f(d)
+            total_t = time.time() - t
+            times.append(total_t)
+        return times
         
+    """ _update_curr
+    Updates the current size/shape for generation.
+    
+    Parameters:
+        - curr : integer | tuple(integer): the current shape, which is an integer if type_ == 'vec', otherwise its a tuple
+        - op : 'mult' | 'add': the type of operation we do to increase our size
+        - delta : number: how much to add/multiply our current size by, depending on op
+        - type_ : 'vec' | 'mnmtx' | 'sqmtx' | 'tensor': the type of data we're generating
 
+    Returns:
+        - the new shape
+    """
+    def _update_curr(self,curr,op,delta,type_='vec'):
+        if type_ == 'vec':
+            if op == 'add':
+                return curr + delta
+            return curr * delta
+        new_curr = []
+        for x in curr:
+            new_curr.append(self._update_curr(x,op,delta))
+        return tuple(new_curr)
+
+    """ _gen_rand_array
+    Generates a random numpy array of length N, according to the randomness specified by rand
+    
+    Parameters:
+        - rand : str: either 'base' or the name of a probability distribution, e.g. 'poisson'
+        - N : integer: a number specifying the length of the array to generate
+        - params: list['a] | None: an optional list of parameters to augment the random variable chosen
+    
+    Returns: a np array of length N, with N independent random variables from the given distribution
+    """
+    def _gen_rand_array(self,rand,N,params=None):
+        if rand == 'base':
+            return self.rng.random((N,))
+        return np.array([util.generateRV(rand,params,display=0) for _ in range(N)])
+
+    """ _get_rand_tensor
+    Generates a random numpy tensor with dimensions = curr
+
+    Parameters:
+        - rand : str: either 'base' or the name of a probability distribution, e.g. 'poisson'
+        - curr : tuple: the shape of the array to generate
+        - params: list['a] | None: an optional list of parameters to augment the random variable chosen
+
+    Returns: an np tensor of shape curr, with each element an independent random variable from the given distribution
+    """
+    def _gen_rand_tensor(self,rand,curr,params=None):
+        if rand == 'base':
+            return self.rng.random(curr)
+        
+        def rand_f():
+            return util.generateRV(rand,params,display=0)
+        return np.fromfunction(rand_f,curr)
+        
+    """ _generate_data
+    Generates a test np array/matrix/tensor according to the parameters in gen_info
+
+    Parameters:
+        - gen_info : dict
+            - the dictionary containing the information needed to generate our test data
+            - Required Keys:
+                - see plot_docs.md
+    
+    Returns: the generated numpy data
+    """
     def _generate_data(self,gen_info):
-        return 0
+        type_ = gen_info['type']
+        range_ = gen_info['range']
+        base = gen_info['base']
+        op = gen_info['op']
+        delta = gen_info['delta']
+        rand = gen_info['rand']
 
+        rand_params = []
+        if rand != 'base':
+            rand_params = gen_info['rand_params']
+        data = []
+        curr = base
+
+        if type_ == 'vec':
+            while curr <= (range_[-1] if op == 'add' else base * (delta ** range_[-1])):
+                data.append(self._gen_rand_array(rand,curr,))
+                curr = self._update_curr(curr,op,delta,type_)
+        else:
+            while curr[-1] <= (range_[-1] if op == 'add' else base[-1] * (delta ** range_[-1])):
+                if rand_params:
+                    data.append(self._gen_rand_tensor(rand,curr,*rand_params))
+
+                else:
+                    data.append(self._gen_rand_tensor(rand,curr,*rand_params))
+                curr = self._update_curr(curr,op,delta,type_)
+        return data
+
+    """ _get_default_np_gen_info
+
+    Parameters:
+        - type_ : 'vec' | 'mnmtx' | 'sqmtx' | 'tensor'
+        - kw_override : dict: a dictionary of values to add/override to gen_info
+    
+    Returns: the default gen_info dict for the given type_, after possibly augmenting with k:v's in kw_override
+    - see plot_docs.md for full documentation
+    """
     def _get_default_np_gen_info(self,type_,**kw_override):
-        gen_info = {'range':[5,13],'base':2,'op':'mult','delta':2,'rand':'base'}
+        gen_info = {'range':[3,10],'op':'mult','delta':2,'rand':'base'}            
     
         if type_ == 'vec':
             gen_info['type'] = 'vec'
             gen_info['dims'] = 'N'
+            base = 2
         elif type_ == 'tensor':
             gen_info['type'] = 'tensor'
             gen_info['dims'] = 3
+            base = (2,2,2)
         gen_info['type'] = 'mtx'
         if type_ == 'sqmtx':
             gen_info['dims'] = 'NN'
+            base = (2,2)
         else:
             gen_info['dims'] = 'MN'
+
         for k in kw_override:
             gen_info[k] = kw_override[k]
+
+        if type_ == 'mnmtx':
+            base = gen_info['mn']
+            del gen_info['mn']
+        gen_info['base'] = base
+
         return gen_info
-        
-
-
-
-
-
-# import math
-# import random
-# chart = {
-#             'xlabel': f'Dimension of matrix',
-#             'ylabel': f'Time',
-#             'title': f'Size vs. Time for SVD for Square Matrix',
-#             'lobf':1
-#         }
-# p.plotGeneric(data=(sizes,times),chart=chart,wait=True,label='time')
-# p._legend()
-# p.plotGeneric(data=(sizes,[.4 * (s**3)/10**9 for s in sizes]),label='O(n^3)',wait=1)
-# p._showPlt(legend=1)
-
 
 if __name__ == '__main__':
-    # P = Plot()
-    # # P.plot({'binomial':([(20,.3),(20,.5),(20,.7)],20,0,1)},'pdf')
-    # # P.plotTail(Exponential(.10),mx=50,mn=0)
-    # P.plotPDF(Normal(0,10),20,-20)
-    # # P.plotPDF(Erlang(3,1/3),100,0)
-    # # P.plotSamples(Poisson(10),10000,25,0)
-    # # X = Normal(0,.01)
-    # # P.plotPDF(Binomial(20,.5))
-    # # print(X.pdf(0))
-    # # P.plotPDF(Normal(0,.0001),mx=1,mn=-1)
-    # chart = {
-    #     'xlabel': f'iteration i',
-    #     'ylabel': f'Max Across Foods',
-    #     'zlabel': 'hello',
-    #     'title': f'Max Value fors for Iterations',
-    #
-    # }
-    #
     U = Exponential(0.1)
-    print(U.moment(2))
-    # P.plot3dData([1,2,3,4,5,6],[1,2,3,4,5,6],[1,2,3,4,5,6],show=False)
-    # P.plot3dData([10,20,30,40,50,60],[10,20,30,40,50,60],[1,2,3,4,5,6],show=True)
+    
