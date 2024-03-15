@@ -360,7 +360,7 @@ class Plot:
                       
             - default: depends on type, see plot_docs.md (https://github.com/DolevArtzi/algsforbigdata/blob/main/plot_docs.md) for full documentation
     """
-    def benchmark_np(self,f,data=None,type_='sqmtx',gen_info=None):
+    def benchmark_np(self,f,data=None,type_='sqmtx',gen_info=None,theory_info=None):
         if data:
             times = self._benchmark(f,data)
         elif not gen_info:
@@ -378,10 +378,15 @@ class Plot:
         chart['title'] = f'Size vs. Time for {f.__name__} for ' + (type_ if type_ in ['vec','tensor'] else 'matrix')
         print('Sizes',sizes)
         print('Times',times)
-        self.plotGeneric(data=(sizes,times),chart=chart,wait=True,label='time')
-        self._legend()
-        self.plotGeneric(data=(sizes,[1.* (s**3)/10**9 for s in sizes]),label='O(n^3)',wait=1)
-        self._showPlt(legend=1)
+        if not theory_info:
+            self.plotGeneric(data=(sizes,times),chart=chart,wait=0,label='time')
+        else:
+            f_theory = theory_info['f']
+            f_theory_label = theory_info['label']
+            self.plotGeneric(data=(sizes,times),chart=chart,wait=1,label='time')
+            self._legend()
+            self.plotGeneric(data=(sizes,[f_theory(s)/10**9 for s in sizes]),label=f_theory_label,wait=1)
+            self._showPlt(legend=1)
 
     """ _benchmark
     Times f(data)
