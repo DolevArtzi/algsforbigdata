@@ -363,11 +363,15 @@ class Plot:
     def benchmark_np(self,f,data=None,type_='sqmtx',gen_info=None,theory_info=None):
         if data:
             times = self._benchmark(f,data)
-        elif not gen_info:
-            gen_info = self._get_default_np_gen_info(type_)
+        # elif not gen_info:
+        gen_info = self._get_default_np_gen_info(type_,**gen_info)
         data = self._generate_data(type_,gen_info)
         sizes = [max(d.shape) for d in data]
         times = self._benchmark(f,data)
+        print('len sizes',len(sizes))
+        print('gen info',gen_info)
+        print(np.polyfit(times,sizes,2))
+        print(1 + math.log(gen_info['range'][0] * (gen_info['delta'] ** gen_info['range'][-1]),gen_info['delta'])-math.log(gen_info['range'][0],gen_info['delta']))
         dim_str = 'Largest Dimension' if type_ != 'vec' else 'Dimension'
         chart = {
                     'xlabel': dim_str + ' ' + f"of {type_ if type_ in ['vec','tensor'] else 'matrix'}",
@@ -488,7 +492,8 @@ class Plot:
             rand_params = gen_info['rand_params'] if 'rand_params' in gen_info else []
         data = []
         curr = base
-
+        # for curr in range base, base *= delta
+        # so the its 1 + log_delta(base * (delta ** range[-1]))-log_delta(range[0])
         if type_ == 'vec':
             while curr <= (range_[-1] if op == 'add' else base * (delta ** range_[-1])):
                 data.append(self._gen_rand_array(rand,curr,))
