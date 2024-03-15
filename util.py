@@ -87,6 +87,8 @@ class Util:
     """
     def generateRV(self,rv_name,*conditions,display=True):
         rv = self.rvs[rv_name][0]
+        if not conditions:
+            conditions = self.rvs[rv_name][1]
         X = rv(*conditions)
         y = X.genVar()
         if display:

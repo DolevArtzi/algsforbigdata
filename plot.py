@@ -366,7 +366,7 @@ class Plot:
         elif not gen_info:
             gen_info = self._get_default_np_gen_info(type_)
         data = self._generate_data(type_,gen_info)
-        sizes = [max(np.shape(d)) for d in data]
+        sizes = [max(d.shape) for d in data]
         times = self._benchmark(f,data)
         dim_str = 'Largest Dimension' if type_ != 'vec' else 'Dimension'
         chart = {
@@ -376,6 +376,7 @@ class Plot:
                 }
 
         chart['title'] = f'Size vs. Time for {f.__name__} for ' + (type_ if type_ in ['vec','tensor'] else 'matrix')
+        chart['title'] += ' ' + ('[np.random]' if 'rand' not in gen_info else f'[{gen_info["rand"]}]')
         print('Sizes',sizes)
         print('Times',times)
         if not theory_info:
@@ -457,11 +458,11 @@ class Plot:
     def _gen_rand_tensor(self,rand,curr,params=None):
         if rand == 'base':
             return self.rng.random(curr)
-        
-        def rand_f():
-            return util.generateRV(rand,params,display=0)
-        return np.fromfunction(rand_f,curr)
-        
+        tensor = np.zeros(curr)
+        for i,_ in np.ndenumerate(tensor):
+            tensor[i] = util.generateRV(rand,display=0,*params) if params else util.generateRV(rand,display=0)
+        return tensor
+
     """ _generate_data
     Generates a test np array/matrix/tensor according to the parameters in gen_info
 
@@ -484,7 +485,7 @@ class Plot:
 
         rand_params = []
         if rand != 'base':
-            rand_params = gen_info['rand_params']
+            rand_params = gen_info['rand_params'] if 'rand_params' in gen_info else []
         data = []
         curr = base
 
@@ -496,9 +497,8 @@ class Plot:
             while curr[-1] <= (range_[-1] if op == 'add' else base[-1] * (delta ** range_[-1])):
                 if rand_params:
                     data.append(self._gen_rand_tensor(rand,curr,*rand_params))
-
                 else:
-                    data.append(self._gen_rand_tensor(rand,curr,*rand_params))
+                    data.append(self._gen_rand_tensor(rand,curr))
                 curr = self._update_curr(curr,op,delta,type_)
         return data
 
