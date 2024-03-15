@@ -368,15 +368,6 @@ class Plot:
         data = self._generate_data(type_,gen_info)
         sizes = [max(d.shape) for d in data]
         times = self._benchmark(f,data)
-        print('len sizes',len(sizes))
-        print('gen info',gen_info)
-        print(1 + math.log(gen_info['range'][0] * (gen_info['delta'] ** gen_info['range'][-1]),gen_info['delta'])-math.log(gen_info['range'][0],gen_info['delta']))
-        print()
-        polyfit = np.polyfit([t for t in times],sizes,theory_info['prediction'])
-        dims = len(polyfit)-1
-        fit_str = ' + '.join([f'{polyfit[i]:.2f} x^{dims-i}' for i in range(dims)])
-        print('Best Fit Curve: y = ',fit_str + ' + ' + str(polyfit[-1])) 
-        print()
         dim_str = 'Largest Dimension' if type_ != 'vec' else 'Dimension'
         chart = {
                     'xlabel': dim_str + ' ' + f"of {type_ if type_ in ['vec','tensor'] else 'matrix'}",
@@ -386,13 +377,10 @@ class Plot:
 
         chart['title'] = f'Size vs. Time for {f.__name__} for ' + (type_ if type_ in ['vec','tensor'] else 'matrix')
         chart['title'] += ' ' + ('[np.random]' if 'rand' not in gen_info else f'[{gen_info["rand"]}]')
-        print('[Sizes, dimension of data]','first two:', f' {sizes[0]},{sizes[1]}, ...', 'last one:',sizes[-1])
-        print('[Times, sec.             ]','first two:', f' {times[0]},{times[1]}, ...', 'last one:',times[-1])
-        print(times)
-        print(sizes)
         if not theory_info:
             self.plotGeneric(data=(sizes,times),chart=chart,wait=0,label='time')
-            return [],[]
+            print('[Sizes, dimension of data]','first two:', f' {sizes[0]},{sizes[1]}, ...', 'last one:',sizes[-1])
+            print('[Times, sec.             ]','first two:', f' {times[0]},{times[1]}, ...', 'last one:',times[-1])
         else:
             f_theory = theory_info['f']
             f_theory_label = theory_info['label']
@@ -401,9 +389,18 @@ class Plot:
             theory_times = [f_theory(s) for s in sizes]
             diffs = [theory_times[i]/times[i] for i in range(len(times))]
             diff = diffs[-1]
-            self.plotGeneric(data=(sizes,[t/diff for t in theory_times]),label=f_theory_label,wait=1)
+            normed_theory_times = [t/diff for t in theory_times]
+            self.plotGeneric(data=(sizes,normed_theory_times),label=f_theory_label,wait=1)
             self._showPlt(legend=1)
-            return theory_times,sizes
+            a = np.array(normed_theory_times)
+            b = np.array(times)
+            cos_sim = (a @ b.T) / (np.linalg.norm(a)* np.linalg.norm (b))
+            print(f"Normalized Error (%) [Measured vs. Theoretical]:  {100 * (1 - cos_sim)/2}")
+            print()
+            polyfit = np.polyfit([t for t in times],sizes,theory_info['prediction'])
+            dims = len(polyfit)-1
+            fit_str = ' + '.join([f'{polyfit[i]:.2f} x^{dims-i}' for i in range(dims)])
+            print('Best Fit Curve: y = ',fit_str + ' + ' + str(polyfit[-1])) 
 
 
     """ _benchmark
