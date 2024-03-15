@@ -370,8 +370,13 @@ class Plot:
         times = self._benchmark(f,data)
         print('len sizes',len(sizes))
         print('gen info',gen_info)
-        print(np.polyfit(times,sizes,2))
         print(1 + math.log(gen_info['range'][0] * (gen_info['delta'] ** gen_info['range'][-1]),gen_info['delta'])-math.log(gen_info['range'][0],gen_info['delta']))
+        print()
+        polyfit = np.polyfit([t for t in times],sizes,theory_info['prediction'])
+        dims = len(polyfit)-1
+        fit_str = ' + '.join([f'{polyfit[i]:.2f} x^{dims-i}' for i in range(dims)])
+        print('Best Fit Curve: y = ',fit_str + ' + ' + str(polyfit[-1])) 
+        print()
         dim_str = 'Largest Dimension' if type_ != 'vec' else 'Dimension'
         chart = {
                     'xlabel': dim_str + ' ' + f"of {type_ if type_ in ['vec','tensor'] else 'matrix'}",
@@ -381,17 +386,25 @@ class Plot:
 
         chart['title'] = f'Size vs. Time for {f.__name__} for ' + (type_ if type_ in ['vec','tensor'] else 'matrix')
         chart['title'] += ' ' + ('[np.random]' if 'rand' not in gen_info else f'[{gen_info["rand"]}]')
-        print('Sizes',sizes)
-        print('Times',times)
+        print('[Sizes, dimension of data]','first two:', f' {sizes[0]},{sizes[1]}, ...', 'last one:',sizes[-1])
+        print('[Times, sec.             ]','first two:', f' {times[0]},{times[1]}, ...', 'last one:',times[-1])
+        print(times)
+        print(sizes)
         if not theory_info:
             self.plotGeneric(data=(sizes,times),chart=chart,wait=0,label='time')
+            return [],[]
         else:
             f_theory = theory_info['f']
             f_theory_label = theory_info['label']
-            self.plotGeneric(data=(sizes,times),chart=chart,wait=1,label='time')
+            self.plotGeneric(data=(sizes,[t for t in times]),chart=chart,wait=1,label='time')
             self._legend()
-            self.plotGeneric(data=(sizes,[f_theory(s)/10**9 for s in sizes]),label=f_theory_label,wait=1)
+            theory_times = [f_theory(s) for s in sizes]
+            diffs = [theory_times[i]/times[i] for i in range(len(times))]
+            diff = diffs[-1]
+            self.plotGeneric(data=(sizes,[t/diff for t in theory_times]),label=f_theory_label,wait=1)
             self._showPlt(legend=1)
+            return theory_times,sizes
+
 
     """ _benchmark
     Times f(data)
@@ -401,7 +414,7 @@ class Plot:
         - data : 'a
 
     Returns:
-        - the time for f(data)'s execution, in ms
+        - the time for f(data)'s execution, in secs
     """
     def _benchmark(self,f,data):
         times = []
@@ -447,7 +460,10 @@ class Plot:
     def _gen_rand_array(self,rand,N,params=None):
         if rand == 'base':
             return self.rng.random((N,))
-        return np.array([util.generateRV(rand,params,display=0) for _ in range(N)])
+        if params:
+            return np.array([util.generateRV(rand,params,display=0) for _ in range(N)])
+        return np.array([util.generateRV(rand,display=0) for _ in range(N)])
+
 
     """ _get_rand_tensor
     Generates a random numpy tensor with dimensions = curr
@@ -464,7 +480,7 @@ class Plot:
             return self.rng.random(curr)
         tensor = np.zeros(curr)
         for i,_ in np.ndenumerate(tensor):
-            tensor[i] = util.generateRV(rand,display=0,*params) if params else util.generateRV(rand,display=0)
+            tensor[i] = util.generateRV(rand,params,display=0) if params else util.generateRV(rand,display=0)
         return tensor
 
     """ _generate_data
@@ -495,11 +511,11 @@ class Plot:
         # for curr in range base, base *= delta
         # so the its 1 + log_delta(base * (delta ** range[-1]))-log_delta(range[0])
         if type_ == 'vec':
-            while curr <= (range_[-1] if op == 'add' else base * (delta ** range_[-1])):
+            while curr <= (range_[-1] if op == 'add' else delta ** range_[-1]):
                 data.append(self._gen_rand_array(rand,curr,))
                 curr = self._update_curr(curr,op,delta,type_)
         else:
-            while curr[-1] <= (range_[-1] if op == 'add' else base[-1] * (delta ** range_[-1])):
+            while curr[-1] <= (range_[-1] if op == 'add' else delta ** range_[-1]):
                 if rand_params:
                     data.append(self._gen_rand_tensor(rand,curr,*rand_params))
                 else:
@@ -517,7 +533,7 @@ class Plot:
     - see plot_docs.md for full documentation
     """
     def _get_default_np_gen_info(self,type_,**kw_override):
-        gen_info = {'range':[3,10],'op':'mult','delta':2,'rand':'base'}            
+        gen_info = {'range':[2,11],'op':'mult','delta':2,'rand':'base'}            
     
         for k in kw_override: # to capture partial gen_infos being passed in, which affect other things
             gen_info[k] = kw_override[k]
