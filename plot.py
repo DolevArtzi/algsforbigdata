@@ -395,8 +395,8 @@ class Plot:
             a = np.array(normed_theory_times)
             b = np.array(times)
             cos_sim = (a @ b.T) / (np.linalg.norm(a)* np.linalg.norm (b))
-            print(f"Normalized Error (%) [Measured vs. Theoretical]:  {100 * (1 - cos_sim)/2}")
-            print()
+            print('Results:')
+            print(f"Normalized Error: [Measured vs. Theoretical]  {100 * (1 - cos_sim)/2}%")
             polyfit = np.polyfit([t for t in times],sizes,theory_info['prediction'])
             dims = len(polyfit)-1
             fit_str = ' + '.join([f'{polyfit[i]:.2f} x^{dims-i}' for i in range(dims)])
