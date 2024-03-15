@@ -7,7 +7,7 @@ from mathutil import avgVar
 import numpy as np
 from mpl_toolkits import mplot3d
 import time
-
+from tqdm import tqdm
 
 
 util = Util()
@@ -365,23 +365,19 @@ class Plot:
             times = self._benchmark(f,data)
         elif not gen_info:
             gen_info = self._get_default_np_gen_info(type_)
-            print(gen_info)
-        data = self._generate_data(gen_info) #todo
-        print(len(data), data[0])
+        data = self._generate_data(type_,gen_info)
         sizes = [max(np.shape(d)) for d in data]
         times = self._benchmark(f,data)
-        # import math
-        # import random
-        dim_str = 'Largest Dimension' if type_ == 'mnmtx' else 'Dimension'
+        dim_str = 'Largest Dimension' if type_ != 'vec' else 'Dimension'
         chart = {
                     'xlabel': dim_str + ' ' + f"of {type_ if type_ in ['vec','tensor'] else 'matrix'}",
                     'ylabel': f'Time',
                     'lobf':1
                 }
 
-        chart['title'] = f'Size vs. Time for {f.__name__} for Data'
-        print(sizes)
-        print(times)
+        chart['title'] = f'Size vs. Time for {f.__name__} for ' + (type_ if type_ in ['vec','tensor'] else 'matrix')
+        print('Sizes',sizes)
+        print('Times',times)
         self.plotGeneric(data=(sizes,times),chart=chart,wait=True,label='time')
         self._legend()
         self.plotGeneric(data=(sizes,[1.* (s**3)/10**9 for s in sizes]),label='O(n^3)',wait=1)
@@ -399,7 +395,7 @@ class Plot:
     """
     def _benchmark(self,f,data):
         times = []
-        for d in data:
+        for d in tqdm(data):
             t = time.time()
             f(d)
             total_t = time.time() - t
@@ -465,6 +461,7 @@ class Plot:
     Generates a test np array/matrix/tensor according to the parameters in gen_info
 
     Parameters:
+        - type_ : the type of data to generate
         - gen_info : dict
             - the dictionary containing the information needed to generate our test data
             - Required Keys:
@@ -472,8 +469,8 @@ class Plot:
     
     Returns: the generated numpy data
     """
-    def _generate_data(self,gen_info):
-        type_ = gen_info['type']
+    def _generate_data(self,type_,gen_info):
+        gen_info = self._get_default_np_gen_info(type_,**gen_info) # I think
         range_ = gen_info['range']
         base = gen_info['base']
         op = gen_info['op']
@@ -512,21 +509,24 @@ class Plot:
     def _get_default_np_gen_info(self,type_,**kw_override):
         gen_info = {'range':[3,10],'op':'mult','delta':2,'rand':'base'}            
     
+        for k in kw_override: # to capture partial gen_infos being passed in, which affect other things
+            gen_info[k] = kw_override[k]
+        range_ = gen_info['range']
+        b = range_[0]
         if type_ == 'vec':
             gen_info['type'] = 'vec'
             gen_info['dims'] = 'N'
-            base = 2
+            base = b
         elif type_ == 'tensor':
             gen_info['type'] = 'tensor'
-            gen_info['dims'] = 3
-            base = (2,2,2)
+            gen_info['dims'] = 3 if 'dims' not in gen_info else gen_info['dims']
+            base = tuple([b] * gen_info['dims'])
         gen_info['type'] = 'mtx'
         if type_ == 'sqmtx':
             gen_info['dims'] = 'NN'
-            base = (2,2)
+            base = (b,b)
         else:
             gen_info['dims'] = 'MN'
-
         for k in kw_override:
             gen_info[k] = kw_override[k]
 
