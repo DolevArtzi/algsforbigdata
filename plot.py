@@ -31,7 +31,7 @@ class Plot:
         - name : 'knn' | 'r_nn': k nearest neighbors, or radius neighbors
         - param : parameters to pass to the classifier ctor: defaults to 3 neighbors, but is interpreted as the radius if name == 'r_nn'
     """
-    def set_classifier(self,name='knn',param=3):
+    def set_classifier(self,name='knn',param=4):
         if name == 'knn':
             self.classifier = KNeighborsClassifier(n_neighbors=param)
         elif name == 'r_nn':
@@ -699,7 +699,7 @@ class Plot:
         cats = []
         labels = list(cat_info.keys())
         for label in labels:
-            member = cat_info[label]
+            member,suffix_args = cat_info[label]
             cats.append([t for t in data if member(t)])
 
         n = self.classifier
@@ -714,22 +714,22 @@ class Plot:
         extracted_cats =  self.extract_categories(predictions,x_name,y_name)
         if not plot:
             return extracted_cats
-        colors = ['g','y','b','r','teal','black'] #add more colors
+        colors = ['g','y','b','fuchsia','teal','maroon','lime','r','royalblue','peru','deepskyblue'] #add more colors
         for i,cat in enumerate(extracted_cats):
             xs = [d[0] for d in cat]
             ys = [d[1] for d in cat]
-            self.plotGeneric(data=[xs,ys],
-                            #  label=labels[i],
-                             scatterArgs={'s':.75,'color':colors[i % len(colors)]},
-                             wait=1)
-            # self._legend()
-        chart={'title':f'{"life expectancy (country)" if y_name == "Life expectancy" else y_name} vs. {x_name}, 2000-2015 [KNN]', #fix knn hardcoding
-                                    'xlabel':'GDP ($)',
-                                    'ylabel':'Life Expectancy (years)'}
-        plt.plot([1000,70000],[69.37066398390344,69.37066398390344],label='average LE',color='black')
-        plt.plot([7494.210719388659,7494.210719388659],[55,84.5],label='average GDP',color='teal')
-        self.set_chart(chart,show=1)
-
+            if i == len(extracted_cats) - 1:
+                chart={'title':f'{"life expectancy (country)" if y_name == "Life expectancy" else y_name} vs. {x_name}, 2000-2015 [KNN]', #fix knn hardcoding
+                        'xlabel':'GDP ($)',
+                        'ylabel':'Life Expectancy (years)'}
+                self.plotGeneric(data=[xs,ys],label=labels[i],scatterArgs={'s':.15,'color':colors[i % len(colors)]},wait= 1,chart=chart)
+                self._legend()
+                plt.plot([1000,70000],[69.37066398390344,69.37066398390344],label='average LE',color='black')
+                plt.plot([7494.210719388659,7494.210719388659],[55,84.5],label='average GDP',color='teal')
+                self.set_chart(chart,show=1)
+            else:
+                self.plotGeneric(data=[xs,ys],label=labels[i],scatterArgs={'s':.15,'color':colors[i % len(colors)]},wait= 1)
+                self._legend()
         # self.plotGeneric(data=cats[3],label='best',
         #                     scatterArgs={'s':1.5,'color':'g'},
         #                     wait=True)
