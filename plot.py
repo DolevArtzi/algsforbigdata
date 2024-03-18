@@ -582,10 +582,11 @@ class Plot:
 
         return gen_info
     
-    def read_file(self,file='data.csv'):
+    def read_file(self,file='data.csv',preview=0):
         #https://www.kaggle.com/datasets/kumarajarshi/life-expectancy-who/data
         df = pd.read_csv(file)
-        print(df.head(5))
+        if preview:
+            print(df.head(5))
         return df
     
     def get_relevant_df_col(self,df,ind_name='GDP',dep_name='Life expectancy '):
@@ -633,17 +634,17 @@ class Plot:
     
     Parameters:
         - idxs : list[integers]: a list of indices into the lists in arrs
-        - *arrs : *list['a]: a variable length collection of equilength lists, 
-                             ordered by dimension, that will be extracted from row-wise across the arrs
-    
-    Returns: [[a[i] for a in *arrs] for i in idxs]
+        - data : n x d 
 
     '''
-    def extract(self,idxs,*arrs):
+    def extract(self,idxs,data):
         out = []
-        for _,a in enumerate(*arrs):
-                out.append(self._extract(idxs,a))
+        for i in idxs:
+            out.append(data[i])
         return out
+        # for _,a in enumerate(*arrs):
+        #         out.append(self._extract(idxs,a))
+        # return out
 
     ''' _extract_category
     Given a map of our predictions and a category, extracts all datapoints that belong to that category 
@@ -676,7 +677,8 @@ class Plot:
         for cat_num in range(1,1+num_cats):
                 out.append(self._extract_category(predictions,cat_num))
         for i in range(len(out)):
-                out[i] = self.extract(out[i],data)
+            # data is n x 2
+            out[i] = self.extract(out[i],data)
         return out
 
     def process_csv(self,file='data.csv'):
@@ -714,14 +716,18 @@ class Plot:
             return extracted_cats
         colors = ['g','y','b','r','teal','black'] #add more colors
         for i,cat in enumerate(extracted_cats):
-            self.plotGeneric(data=cat,
-                             label=labels[i],
+            xs = [d[0] for d in cat]
+            ys = [d[1] for d in cat]
+            self.plotGeneric(data=[xs,ys],
+                            #  label=labels[i],
                              scatterArgs={'s':.75,'color':colors[i % len(colors)]},
                              wait=1)
-            self._legend()
+            # self._legend()
         chart={'title':f'{"life expectancy (country)" if y_name == "Life expectancy" else y_name} vs. {x_name}, 2000-2015 [KNN]', #fix knn hardcoding
                                     'xlabel':'GDP ($)',
                                     'ylabel':'Life Expectancy (years)'}
+        plt.plot([1000,70000],[69.37066398390344,69.37066398390344],label='average LE',color='black')
+        plt.plot([7494.210719388659,7494.210719388659],[55,84.5],label='average GDP',color='teal')
         self.set_chart(chart,show=1)
 
         # self.plotGeneric(data=cats[3],label='best',
